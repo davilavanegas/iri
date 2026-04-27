@@ -1,13 +1,18 @@
 """ This file implements two methods for the computation of Internation Roughness Index (IRI).
     The file can be either imported and the methods accessed by calling the function iri()
     or can be used as a commandline tool. To get the description of all commandline parameters, call
-    python iri.py -h.    
+    python iri_150kph.py -h.
+
+    This copy defaults to a 150 km/h quarter-car speed. Values calculated at speeds other than
+    80 km/h should be treated as speed-specific roughness response, not official standard IRI.
 """
 import numpy as np
 from math import factorial, sin, cos, exp
 from scipy import interpolate
 import argparse
 import os
+
+DEFAULT_SPEED_KPH = 150.0
 
 def fintM(t1,t2,y1,y2):
     #    fintM
@@ -80,9 +85,10 @@ def parse_arguments():
     parser.add_argument("-step", type= float, default=0, help = "If missing or 0, IRI is computed in non-overlapping segments. Otherwise, this is the shift of consecutive IRI segments in meters, often set to sampling step for regular sampling.")
     parser.add_argument("-filter_off", action="store_true", help = "If missing, for sampling intervals shorter than 0.25m, profile is first averaged with a box filter of length 0.25m as recommended in Sayers' paper to better represent the way in which the tire of a vehicle envelops the ground. If present, the filtering is turned off completely.")
     parser.add_argument("-method", type=int, default=2, choices = [0, 2], help = "0 - Sayers' implementation, for irregular sampling first resampled; 2(default) - our semi-analytical solution (Sroubek & Sorel).")
+    parser.add_argument("-speed_kph", type=float, default=DEFAULT_SPEED_KPH, help="Vehicle speed in km/h. Defaults to 150 km/h in this copy. Standard IRI uses 80 km/h.")
     return parser.parse_args()
 
-def iri(Y, segment_length, start_pos, step, box_filter = True, method = 2):
+def iri(Y, segment_length, start_pos, step, box_filter = True, method = 2, speed_kph = DEFAULT_SPEED_KPH):
 
     """
         IRI calculate IRI 
@@ -105,6 +111,7 @@ def iri(Y, segment_length, start_pos, step, box_filter = True, method = 2):
         method ...    0 - Sayers' implementation, for regular sampling only
                       1 - numerical solver ode45 (in Python not implemented),
                       2(default) - our semi-analytical solution (Sroubek & Sorel)
+        speed_kph ... vehicle speed in km/h, default 150 km/h in this copy.
 
         Output:
         IRI ... four-column IRI matrix, with columns [star_pos, end_pos, IRI, std_of_IRI],
@@ -151,8 +158,10 @@ def iri(Y, segment_length, start_pos, step, box_filter = True, method = 2):
     A = np.array([ [0, 1, 0, 0], [-K2, -C, K2, C], [0, 0, 0, 1], [K2/u, C/u, -(K1+K2)/u, -C/u] ])
     b = np.vstack([ 0, 0, 0, K1/u ])
 
-    # standard car speed 80km/h = 22.2m/s
-    v = 80/3.6
+    if speed_kph <= 0:
+        print('Vehicle speed must be positive.')
+        return
+    v = speed_kph/3.6
 
     # remove duplicated points - should never happen but to be sure
     DX = np.diff(Y[:,0])
@@ -270,6 +279,7 @@ def iri(Y, segment_length, start_pos, step, box_filter = True, method = 2):
     print('Segment length:', segment_length, 'm') 
     print('Starting position:', *YC[si,0], 'm')
     print('Method:', method)
+    print('Speed:', speed_kph, 'km/h')
     print('Number of segments:', nsegments_o) 
 
     # initialization of Z according to the IRI book
@@ -377,25 +387,25 @@ def plot_iri(IRI,YC, title, plot_file):
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     segment_centers = (IRI[:,0]+IRI[:,1])/2
-    lns1 = ax1.plot(segment_centers, IRI[:,2], '-b', label = 'IRI')
+    lns1 = ax1.plot(segment_centers, IRI[:,2], '-b', label = 'IRI-like response')
     avg_band = ax1.fill_between(
         [IRI[0,0], IRI[-1,1]],
         [average_iri - average_iri_std, average_iri - average_iri_std],
         [average_iri + average_iri_std, average_iri + average_iri_std],
         color = 'black',
         alpha = 0.12,
-        label = 'Average IRI +/- std: {:.2f} +/- {:.2f} mm/m'.format(average_iri, average_iri_std)
+        label = 'Average response +/- std: {:.2f} +/- {:.2f} mm/m'.format(average_iri, average_iri_std)
     )
     lns_avg = ax1.plot(
         [IRI[0,0], IRI[-1,1]],
         [average_iri, average_iri],
         '--k',
         linewidth = 2,
-        label = 'Average IRI: {:.2f} mm/m over {:.0f} m'.format(average_iri, total_distance)
+        label = 'Average response: {:.2f} mm/m over {:.0f} m'.format(average_iri, total_distance)
     )
     lns2 = ax2.plot(YC[:,0], YC[:,1], '-r', label = 'Road profile')
     ax1.set_xlabel('Stationing [m]')
-    ax1.set_ylabel('IRI [mm/m]', color='b')
+    ax1.set_ylabel('IRI-like response [mm/m]', color='b')
     ax2.set_ylabel('Elevation [m]', color='r')
     ax1.set(title=title)
     ax1.xaxis.label.set_size(20)
@@ -416,10 +426,10 @@ if __name__ == "__main__":
     else:
         box_filter = True 
     print('Box filter: ', box_filter)
-    Solution, equidistant = iri(road_profile, args.segment_length, args.start_pos, args.step, box_filter, args.method)
+    Solution, equidistant = iri(road_profile, args.segment_length, args.start_pos, args.step, box_filter, args.method, args.speed_kph)
     ensure_output_folder(args.iri_file)
     np.savetxt(args.iri_file,Solution,fmt = '%s', 
-        header = 'Start, End, IRI value, IRI std. deviation', delimiter = args.delimiter)
+        header = 'Start, End, IRI-like value at {} km/h, IRI-like std. deviation'.format(args.speed_kph), delimiter = args.delimiter)
     if args.method == 0:
         title = 'Sayers'
     else:
@@ -431,5 +441,6 @@ if __name__ == "__main__":
     title += ', segment length {}m'.format(args.segment_length)        
     if args.step:
         title += ', step {}m'.format(args.step)
+    title += ', speed {} km/h'.format(args.speed_kph)
     if args.plot_file:    
         plot_iri(Solution, road_profile, title, args.plot_file)
