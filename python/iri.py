@@ -377,7 +377,18 @@ def plot_iri(IRI,YC, title, plot_file):
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
     segment_centers = (IRI[:,0]+IRI[:,1])/2
-    lns1 = ax1.plot(segment_centers, IRI[:,2], '-b', label = 'IRI')
+    iri_bars = ax1.bar(
+        segment_centers[valid_segments],
+        IRI[valid_segments,2],
+        width = segment_lengths[valid_segments],
+        align = 'center',
+        color = 'tab:blue',
+        edgecolor = 'tab:blue',
+        linewidth = 0.8,
+        alpha = 0.25,
+        label = 'Segment average IRI'
+    )
+    lns1 = ax1.plot(segment_centers, IRI[:,2], '-b', marker = 'o', markersize = 3, label = 'IRI')
     avg_band = ax1.fill_between(
         [IRI[0,0], IRI[-1,1]],
         [average_iri - average_iri_std, average_iri - average_iri_std],
@@ -402,7 +413,7 @@ def plot_iri(IRI,YC, title, plot_file):
     ax1.yaxis.label.set_size(20)
     ax2.yaxis.label.set_size(20)
     fig.set_size_inches(18.5, 10.5)
-    lns = lns1+lns_avg+[avg_band]+lns2
+    lns = [iri_bars]+lns1+lns_avg+[avg_band]+lns2
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs)
     fig.savefig(plot_file)

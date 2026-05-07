@@ -76,3 +76,11 @@ IRI ... IRI vector calculated in segments; matrix with rows
           standard deviation of IRI within each segment, IRI is in mm/m [equivalent to m/km]
 
 
+.\.venv\Scripts\python.exe python\iri.py profile_dsn.txt output\profile_dsn_step2_iri.txt -delimiter "," -step 2 -plot_file output\profile_dsn.jpg
+
+.\.venv\Scripts\python.exe python\iri_dar.py profile_dsn.txt -delimiter "," -elevation_unit m -segment_length 5 -step 2 -plot_file output\profile_dsn_dar_iri.jpg
+
+
+.\.venv\Scripts\python.exe python\iri.py profile_dsn.txt output\profile_dsn_step2_iri.txt -delimiter "," -segment_length 5 -step 2 -plot_file output\profile_dsn.jpg
+
+.\.venv\Scripts\python.exe python\iri.py profile_dsn.txt output\profile_dsn_k5_iri.txt -delimiter "," -segment_length 5 -step 5 -plot_file output\profile_dsn_k5.jpg
